@@ -798,7 +798,14 @@ mod tests {
         // Stale entry: metadata 40 days old, split also old.
         write("old.json", true);
         write("old.split/done.json", true);
-        let old_split = std::fs::File::open(dir.join("old.split")).expect("open");
+        let mut options = std::fs::OpenOptions::new();
+        options.read(true);
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            options.write(true).custom_flags(0x02000000); // Open directory on Windows.
+        }
+        let old_split = options.open(dir.join("old.split")).expect("open");
         old_split.set_modified(past).expect("mtime");
         // Fresh entry with its archive still present but already split long ago.
         write("new.json", false);

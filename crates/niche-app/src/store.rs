@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::sync::Mutex;
 
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior, params};
 
 use crate::AppError;
 use crate::accounts::{Principal, Scope, quota_status};
@@ -617,7 +617,8 @@ impl Store {
             .get(id)?
             .ok_or_else(|| AppError::NotFound(format!("job {id}")))?;
         self.with(|c| {
-            let seq: i64 = c
+            let tx = Transaction::new_unchecked(c, TransactionBehavior::Immediate).map_err(db)?;
+            let seq: i64 = tx
                 .query_row(
                     "SELECT COALESCE(MAX(seq),0)+1 FROM events WHERE job_id=?1",
                     [id],
@@ -635,11 +636,12 @@ impl Store {
                 level: level.into(),
                 at: now(),
             };
-            c.execute(
+            tx.execute(
                 "INSERT INTO events(job_id,seq,body) VALUES(?1,?2,?3)",
                 params![id, seq, json(&ev)?],
             )
             .map_err(db)?;
+            tx.commit().map_err(db)?;
             Ok(ev)
         })
     }

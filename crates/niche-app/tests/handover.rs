@@ -97,3 +97,42 @@ fn a_study_running_in_one_process_is_cancelled_through_the_other() {
     assert!(Lease::try_acquire(&dir.join("data")).expect("io").is_some());
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn concurrent_processes_record_events_without_duplicate_sequences() {
+    let dir = std::env::temp_dir().join(format!("niche-events-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let first = Arc::new(Engine::open(cfg(&dir)).expect("first process"));
+    let second = Arc::new(Engine::open(cfg(&dir)).expect("second process"));
+    let id = first.submit(spec()).expect("submit").id;
+    let barrier = Arc::new(std::sync::Barrier::new(2));
+    let handles: Vec<_> = [first.clone(), second]
+        .into_iter()
+        .map(|engine| {
+            let id = id.clone();
+            let barrier = barrier.clone();
+            std::thread::spawn(move || {
+                barrier.wait();
+                for _ in 0..100 {
+                    engine
+                        .store()
+                        .event(&id, "concurrent", "info", None)
+                        .expect("event");
+                }
+            })
+        })
+        .collect();
+    for handle in handles {
+        handle.join().expect("event writer");
+    }
+    let events = first.store().events_after(&id, 0).expect("events");
+    assert_eq!(events.len(), 201);
+    assert!(
+        events
+            .iter()
+            .enumerate()
+            .all(|(i, event)| event.seq == i as i64 + 1)
+    );
+    drop(first);
+    let _ = std::fs::remove_dir_all(dir);
+}

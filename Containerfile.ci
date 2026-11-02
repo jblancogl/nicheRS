@@ -1,0 +1,20 @@
+# CI image: packages the release binary built by the `build:binary` job (web UI embedded).
+# Context: image-context/ (only the binary). Local builds use Containerfile (multi-stage).
+FROM gcr.io/distroless/cc-debian12:nonroot
+ARG VCS_REF=dev
+COPY --chmod=755 niche /niche
+LABEL org.opencontainers.image.title="NicheRS" \
+      org.opencontainers.image.description="Species distribution modelling (MaxEnt) with an embedded web UI" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.revision="$VCS_REF"
+# Same runtime settings as Containerfile.
+ENV NICHE_HOST=0.0.0.0 \
+    NICHE_PORT=8080 \
+    NICHE_DATA_DIR=/data \
+    NICHE_CACHE_DIR=/data/cache \
+    NICHE_LOG_FORMAT=json
+EXPOSE 8080
+VOLUME ["/data"]
+USER nonroot:nonroot
+ENTRYPOINT ["/niche"]
+CMD ["serve"]

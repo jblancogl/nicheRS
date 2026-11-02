@@ -1,0 +1,242 @@
+//! Interruption and recovery (twelve-factor IX): a shutdown during a multi-species job leaves it
+//! resumable; on restart it is requeued and completed species are not recomputed.
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+
+use niche_app::dto::*;
+use niche_app::{Config, Engine, demo};
+
+fn cfg(dir: &std::path::Path) -> Config {
+    Config {
+        data_dir: dir.join("data"),
+        cache_dir: dir.join("cache"),
+        max_records: 5000,
+        gbif: None,
+        secret_key: None,
+        mirror: None,
+        limits: Default::default(),
+        retention_days: 0,
+    }
+}
+
+#[test]
+fn shutdown_mid_job_resumes_without_losing_results() {
+    let dir = std::env::temp_dir().join(format!("niche-recovery-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let spec = JobSpec {
+        name: "recovery".into(),
+        species: (0..3)
+            .map(|i| SpeciesRef {
+                key: i,
+                scientific_name: format!("{} #{i}", demo::SPECIES_NAME),
+                own: None,
+            })
+            .collect(),
+        area: StudyArea {
+            name: "Demo".into(),
+            geometry: demo::area_geojson(),
+            places: vec![],
+        },
+        layers: demo::LAYERS.iter().map(|l| l.0.to_string()).collect(),
+        resolution_factor: 2,
+        filters: OccurrenceFilters::default(),
+        model: ModelSettings {
+            feature_classes: vec!["LQ".into()],
+            beta_multipliers: vec![1.0],
+            ..ModelSettings::default()
+        },
+        validation: ValidationSettings::default(),
+        seed: 3,
+        demo: true,
+        projections: vec![],
+        own_dataset: None,
+    };
+    let id;
+    {
+        let e = Arc::new(Engine::open(cfg(&dir)).expect("engine"));
+        id = e.submit(spec).expect("submit").id;
+        let cancel = Arc::new(AtomicBool::new(false));
+        let shutdown = Arc::new(AtomicBool::new(false));
+        // Stop as soon as the first species has finished.
+        let (e2, c2, s2, id2) = (e.clone(), cancel.clone(), shutdown.clone(), id.clone());
+        let watcher = std::thread::spawn(move || {
+            loop {
+                if let Ok(Some(j)) = e2.store().get(&id2)
+                    && j.species
+                        .iter()
+                        .any(|s| s.status == SpeciesRunStatus::Succeeded)
+                {
+                    s2.store(true, Ordering::Relaxed);
+                    c2.store(true, Ordering::Relaxed);
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        });
+        e.run_job(&id, &cancel, &shutdown);
+        watcher.join().expect("watcher");
+        let j = e.store().get(&id).expect("db").expect("job");
+        assert_eq!(
+            j.status,
+            JobStatus::Running,
+            "shutdown must leave the job resumable"
+        );
+        assert!(
+            j.species
+                .iter()
+                .filter(|s| s.status == SpeciesRunStatus::Succeeded)
+                .count()
+                >= 1
+        );
+    }
+    // "Restart": a new engine on the same data dir requeues and finishes the job.
+    let e = Engine::open(cfg(&dir)).expect("engine");
+    let requeued = e.store().recover_interrupted().expect("recover");
+    assert_eq!(requeued, vec![id.clone()]);
+    let first_result = std::fs::metadata(dir.join("data/jobs").join(&id).join("0/result.json"))
+        .expect("checkpoint")
+        .modified()
+        .expect("mtime");
+    let never = AtomicBool::new(false);
+    e.run_job(&id, &never, &never);
+    let r = e.results(&id).expect("results");
+    assert_eq!(r.job.status, JobStatus::Succeeded);
+    assert_eq!(r.species.len(), 3);
+    let after = std::fs::metadata(dir.join("data/jobs").join(&id).join("0/result.json"))
+        .expect("checkpoint")
+        .modified()
+        .expect("mtime");
+    assert_eq!(
+        first_result, after,
+        "completed species must not be recomputed"
+    );
+    let evs = e.store().events_after(&id, 0).expect("events");
+    assert!(evs.iter().any(|ev| ev.message.contains("skipped (resume)")));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Every file of a species' result directory, by name. The report's generation time is the
+/// only content allowed to differ between two runs.
+fn outputs(dir: &std::path::Path) -> std::collections::BTreeMap<String, Vec<u8>> {
+    std::fs::read_dir(dir)
+        .expect("species dir")
+        .flatten()
+        .map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let mut bytes = std::fs::read(e.path()).expect("read");
+            if name == "report.md" {
+                bytes = String::from_utf8(bytes)
+                    .expect("utf-8")
+                    .lines()
+                    .filter(|l| !l.starts_with("Generated by NicheRS"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+                    .into_bytes();
+            }
+            (name, bytes)
+        })
+        .collect()
+}
+
+#[test]
+fn a_species_interrupted_during_cross_validation_resumes_with_identical_results() {
+    let root = std::env::temp_dir().join(format!("niche-cv-resume-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let spec = JobSpec {
+        name: "cv resume".into(),
+        species: vec![SpeciesRef {
+            key: 7,
+            scientific_name: demo::SPECIES_NAME.into(),
+            own: None,
+        }],
+        area: StudyArea {
+            name: "Demo".into(),
+            geometry: demo::area_geojson(),
+            places: vec![],
+        },
+        layers: demo::LAYERS.iter().map(|l| l.0.to_string()).collect(),
+        resolution_factor: 2,
+        filters: OccurrenceFilters::default(),
+        model: ModelSettings {
+            feature_classes: vec!["L".into(), "LQ".into(), "LQH".into()],
+            beta_multipliers: vec![1.0, 2.0, 4.0],
+            ..ModelSettings::default()
+        },
+        validation: ValidationSettings::default(),
+        seed: 11,
+        demo: true,
+        projections: vec![],
+        own_dataset: None,
+    };
+    let never = AtomicBool::new(false);
+
+    // Reference: the same job, never interrupted.
+    let reference = {
+        let dir = root.join("reference");
+        let e = Engine::open(cfg(&dir)).expect("engine");
+        let id = e.submit(spec.clone()).expect("submit").id;
+        e.run_job(&id, &never, &never);
+        assert_eq!(
+            e.results(&id).expect("results").job.status,
+            JobStatus::Succeeded
+        );
+        outputs(&dir.join("data/jobs").join(&id).join("7"))
+    };
+
+    // Interrupted once a few cross-validation models are saved, then resumed by a new engine.
+    let dir = root.join("resumed");
+    let id;
+    let ckpt;
+    {
+        let e = Arc::new(Engine::open(cfg(&dir)).expect("engine"));
+        id = e.submit(spec).expect("submit").id;
+        ckpt = dir.join("data/jobs").join(&id).join("checkpoints/7");
+        let stop = Arc::new(AtomicBool::new(false));
+        let (s2, c2) = (stop.clone(), ckpt.clone());
+        let watcher = std::thread::spawn(move || {
+            loop {
+                let saved = std::fs::read_dir(&c2).map(|d| d.count()).unwrap_or(0);
+                if saved >= 3 {
+                    s2.store(true, Ordering::Relaxed);
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        });
+        e.run_job(&id, &stop, &stop);
+        watcher.join().expect("watcher");
+        assert_eq!(
+            e.store().get(&id).expect("db").expect("job").status,
+            JobStatus::Running,
+            "shutdown leaves the job resumable"
+        );
+    }
+    let saved = std::fs::read_dir(&ckpt).expect("checkpoints").count();
+    assert!(saved >= 3, "models trained before the shutdown are kept");
+    let e = Engine::open(cfg(&dir)).expect("engine");
+    e.store().recover_interrupted().expect("recover");
+    e.run_job(&id, &never, &never);
+    assert_eq!(
+        e.results(&id).expect("results").job.status,
+        JobStatus::Succeeded
+    );
+    let evs = e.store().events_after(&id, 0).expect("events");
+    assert!(
+        evs.iter().any(|ev| ev
+            .message
+            .contains("cross-validation models already trained")),
+        "the resume is recorded in the study log"
+    );
+    let resumed = outputs(&dir.join("data/jobs").join(&id).join("7"));
+    assert_eq!(
+        reference.keys().collect::<Vec<_>>(),
+        resumed.keys().collect::<Vec<_>>()
+    );
+    for (name, bytes) in &reference {
+        assert!(resumed[name] == *bytes, "{name} differs after resuming");
+    }
+    assert!(!dir.join("data/jobs").join(&id).join("checkpoints").exists());
+    let _ = std::fs::remove_dir_all(root);
+}

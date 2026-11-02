@@ -1,0 +1,20 @@
+[package]
+name = "niche-data"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+csv = "1.4.0"
+flate2 = "1.1.10"
+niche-geo = { version = "0.1.0", path = "../niche-geo" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+tracing = "0.1.44"
+ureq = "3.4.2"
+zip = { version = "9.0.3", default-features = false, features = ["deflate"] }
+
+[lints]
+workspace = true

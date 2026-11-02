@@ -1,0 +1,16 @@
+{
+  "name": "s01_small",
+  "n_grid": 60,
+  "n_presence": 12,
+  "n_background": 3600,
+  "seed": 11,
+  "variables": [
+    "temp",
+    "prec",
+    "rough"
+  ],
+  "missing_frac": 0.0,
+  "nodata": -9999,
+  "synthetic": true,
+  "generator": "scripts/gen_synthetic.py"
+}

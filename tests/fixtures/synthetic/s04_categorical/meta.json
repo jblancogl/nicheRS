@@ -1,0 +1,17 @@
+{
+  "name": "s04_categorical",
+  "n_grid": 100,
+  "n_presence": 150,
+  "n_background": 10000,
+  "seed": 14,
+  "variables": [
+    "temp",
+    "prec",
+    "rough",
+    "landcover"
+  ],
+  "missing_frac": 0.0,
+  "nodata": -9999,
+  "synthetic": true,
+  "generator": "scripts/gen_synthetic.py"
+}

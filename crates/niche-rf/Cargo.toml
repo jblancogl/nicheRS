@@ -1,0 +1,19 @@
+[package]
+name = "niche-rf"
+description = "Down-sampled (balanced) random forest for presence-background SDMs (pure domain, no I/O)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+niche-eval = { path = "../niche-eval" }
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2"
+
+[dev-dependencies]
+# `float_roundtrip`: exact f64 parsing, so a JSON round trip reproduces split thresholds bit for bit.
+serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
+
+[lints]
+workspace = true

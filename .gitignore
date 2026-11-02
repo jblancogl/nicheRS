@@ -1,0 +1,10 @@
+target/
+node_modules/
+web/dist/
+reference/vendor/
+bench-out/
+/data/
+graft/
+
+# Administrative boundary packs (ADR-0012): built and installed, never committed
+*.nrsb

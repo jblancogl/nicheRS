@@ -1,0 +1,39 @@
+[workspace]
+resolver = "3"
+members = ["crates/niche-maxent", "crates/niche-cli", "crates/niche-eval", "crates/niche-geo", "crates/niche-data", "crates/niche-app", "crates/niche-server", "crates/niche-rf"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.96"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+type_complexity = "allow"
+
+[profile.release]
+debug = 1
+codegen-units = 1
+lto = "thin"
+
+# Golden tests train real models; keep the kernel optimized in debug/test builds.
+[profile.dev.package.niche-maxent]
+opt-level = 3
+[profile.dev.package.niche-app]
+opt-level = 3
+[profile.dev.package.niche-eval]
+opt-level = 3
+[profile.dev.package.niche-geo]
+opt-level = 3
+[profile.dev.package.niche-rf]
+opt-level = 3
+
+# Distribution build: no debug info, stripped (scripts/build-release.sh).
+[profile.dist]
+inherits = "release"
+debug = 0
+strip = true

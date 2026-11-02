@@ -1,0 +1,88 @@
+// Strings of the two setup paths: the chooser (PathChooser.tsx), the switch in the wizard frame
+// and the quick path's wording on the species, area and review steps.
+
+import { defineMessages } from "@/i18n/messages";
+
+export const usePathMessages = defineMessages({
+  en: {
+    chooserTitle: "New study",
+    chooserSubtitle: "How do you want to set it up?",
+    quick: "Quick",
+    quickLead: "Discover where a species could find suitable conditions in your territory.",
+    quickSteps: "3 steps: a species, a territory, launch. Data cleaning, climate variables and model calibration use the recommended settings.",
+    expert: "Expert",
+    expertLead: "Control every step of the modelling.",
+    expertSteps: "6 steps: several species at once, data filters and resolution, climate variables, model and validation settings.",
+    sameModel:
+      "Both paths run the same validated MaxEnt model and record every setting with the results. You can switch at any time without losing your choices.",
+    remembered: "Your choice is remembered in this browser for the next studies.",
+    switchLabel: "Setup mode",
+    oneSpecies: "The quick mode models one species: choosing another replaces it. For several species at once, switch to Expert.",
+    reviewTitle: "Check & launch",
+    reviewSubtitle: "Check what NicheRS found for your species, then launch the study.",
+    checks: "Data found",
+    searching: "Looking for GBIF records and climate data in your territory… This can take a minute.",
+    settings: "Settings",
+    recommended: "Recommended settings: data cleaning, CHELSA climate variables and automatic model calibration.",
+    custom: "These settings differ from the recommended ones (changed in Expert mode or copied from a duplicated study); they are kept:",
+    adjust: "See or adjust in Expert mode",
+    found: (cells: string, records: string) => `${cells} usable locations, from ${records} GBIF records`,
+    truncated: "This preview uses only part of the GBIF records.",
+    meaning:
+      "The map will show the relative suitability of climatic conditions: not a probability of presence, not where the species has been observed, and not a substitute for field survey.",
+  },
+  fr: {
+    chooserTitle: "Nouvelle étude",
+    chooserSubtitle: "Comment souhaitez-vous la préparer ?",
+    quick: "Rapide",
+    quickLead: "Découvrez où une espèce pourrait trouver des conditions favorables sur votre territoire.",
+    quickSteps: "3 étapes : une espèce, un territoire, le lancement. Le nettoyage des données, les variables climatiques et la calibration du modèle suivent les réglages recommandés.",
+    expert: "Expert",
+    expertLead: "Maîtrisez chaque étape de la modélisation.",
+    expertSteps: "6 étapes : plusieurs espèces à la fois, filtres et résolution des données, variables climatiques, réglages du modèle et de la validation.",
+    sameModel:
+      "Les deux parcours utilisent le même modèle MaxEnt validé et consignent tous les réglages avec les résultats. Vous pouvez changer de parcours à tout moment sans perdre vos choix.",
+    remembered: "Votre choix est mémorisé dans ce navigateur pour les prochaines études.",
+    switchLabel: "Mode de préparation",
+    oneSpecies: "Le mode rapide modélise une espèce : en choisir une autre la remplace. Pour plusieurs espèces à la fois, passez en mode Expert.",
+    reviewTitle: "Vérifier et lancer",
+    reviewSubtitle: "Vérifiez ce que NicheRS a trouvé pour votre espèce, puis lancez l'étude.",
+    checks: "Données trouvées",
+    searching: "Recherche des occurrences GBIF et des données climatiques sur votre territoire… Cela peut prendre une minute.",
+    settings: "Réglages",
+    recommended: "Réglages recommandés : nettoyage des données, variables climatiques CHELSA et calibration automatique du modèle.",
+    custom: "Ces réglages diffèrent des réglages recommandés (modifiés en mode Expert ou copiés d'une étude dupliquée) ; ils sont conservés :",
+    adjust: "Voir ou ajuster en mode Expert",
+    found: (cells: string, records: string) => `${cells} localisations utilisables, à partir de ${records} occurrences GBIF`,
+    truncated: "Cet aperçu n'utilise qu'une partie des occurrences GBIF.",
+    meaning:
+      "La carte montrera l'idonéité relative des conditions climatiques : ni une probabilité de présence, ni les lieux où l'espèce a été observée, ni un substitut à un inventaire de terrain.",
+  },
+  es: {
+    chooserTitle: "Nuevo estudio",
+    chooserSubtitle: "¿Cómo quiere prepararlo?",
+    quick: "Rápido",
+    quickLead: "Descubra dónde una especie podría encontrar condiciones favorables en su territorio.",
+    quickSteps: "3 pasos: una especie, un territorio y lanzar. La limpieza de datos, las variables climáticas y la calibración del modelo usan los ajustes recomendados.",
+    expert: "Experto",
+    expertLead: "Controle cada paso de la modelización.",
+    expertSteps: "6 pasos: varias especies a la vez, filtros y resolución de los datos, variables climáticas, ajustes del modelo y de la validación.",
+    sameModel:
+      "Los dos caminos usan el mismo modelo MaxEnt validado y registran todos los ajustes con los resultados. Puede cambiar en cualquier momento sin perder lo elegido.",
+    remembered: "Su elección se recuerda en este navegador para los próximos estudios.",
+    switchLabel: "Modo de preparación",
+    oneSpecies: "El modo rápido modeliza una especie: elegir otra la sustituye. Para varias especies a la vez, cambie al modo Experto.",
+    reviewTitle: "Comprobar y lanzar",
+    reviewSubtitle: "Compruebe lo que NicheRS ha encontrado para su especie y lance el estudio.",
+    checks: "Datos encontrados",
+    searching: "Buscando registros de GBIF y datos climáticos en su territorio… Puede tardar un minuto.",
+    settings: "Ajustes",
+    recommended: "Ajustes recomendados: limpieza de datos, variables climáticas CHELSA y calibración automática del modelo.",
+    custom: "Estos ajustes difieren de los recomendados (cambiados en el modo Experto o copiados de un estudio duplicado); se conservan:",
+    adjust: "Ver o ajustar en el modo Experto",
+    found: (cells: string, records: string) => `${cells} localizaciones utilizables, a partir de ${records} registros de GBIF`,
+    truncated: "Esta vista previa usa solo una parte de los registros de GBIF.",
+    meaning:
+      "El mapa mostrará la idoneidad relativa de las condiciones climáticas: no una probabilidad de presencia, no dónde se ha observado la especie y no sustituye a un inventario de campo.",
+  },
+});

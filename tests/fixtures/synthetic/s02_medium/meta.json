@@ -1,0 +1,16 @@
+{
+  "name": "s02_medium",
+  "n_grid": 100,
+  "n_presence": 60,
+  "n_background": 10000,
+  "seed": 12,
+  "variables": [
+    "temp",
+    "prec",
+    "rough"
+  ],
+  "missing_frac": 0.0,
+  "nodata": -9999,
+  "synthetic": true,
+  "generator": "scripts/gen_synthetic.py"
+}

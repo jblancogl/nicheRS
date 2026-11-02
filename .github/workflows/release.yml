@@ -1,0 +1,80 @@
+name: Release builds
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux-x86_64
+            executable: niche
+          - os: windows-2022
+            platform: windows-x86_64
+            executable: niche.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: dtolnay/rust-toolchain@1.96.0
+      - name: Build web interface
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm run lint
+          npm run build
+      - name: Run Rust tests
+        run: cargo test --locked --workspace
+      - name: Build executable
+        run: cargo build --locked --profile dist -p niche-cli
+        env:
+          NICHE_BUILD_ID: ${{ github.sha }}
+      - name: Check executable
+        run: ./target/dist/${{ matrix.executable }} --help
+      - name: Package executable and licences
+        shell: bash
+        run: |
+          mkdir package
+          cp target/dist/${{ matrix.executable }} package/
+          cp README.md LICENSE NOTICE package/
+          if [ '${{ matrix.platform }}' = 'linux-x86_64' ]; then
+            tar -czf nichers-${{ matrix.platform }}.tar.gz -C package .
+          else
+            7z a -tzip nichers-${{ matrix.platform }}.zip ./package/*
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nichers-${{ matrix.platform }}
+          path: nichers-${{ matrix.platform }}.*
+          if-no-files-found: error
+
+  draft:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          cd artifacts
+          sha256sum nichers-* > SHA256SUMS.txt
+          gh release create v0.1.0 nichers-* SHA256SUMS.txt \
+            --target "$SOURCE_SHA" --draft --title 'NicheRS v0.1.0' \
+            --notes 'First draft release for 64-bit Windows and Linux. Extract the archive and run `niche serve` (`niche.exe serve` on Windows); then open http://127.0.0.1:8080. The web interface is included. The synthetic demo works offline; real analyses download their required data. See README and NOTICE for details.'

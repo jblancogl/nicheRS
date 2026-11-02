@@ -1,0 +1,16 @@
+{
+  "name": "s05_missing",
+  "n_grid": 100,
+  "n_presence": 150,
+  "n_background": 10000,
+  "seed": 15,
+  "variables": [
+    "temp",
+    "prec",
+    "rough"
+  ],
+  "missing_frac": 0.02,
+  "nodata": -9999,
+  "synthetic": true,
+  "generator": "scripts/gen_synthetic.py"
+}

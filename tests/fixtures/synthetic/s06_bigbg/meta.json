@@ -1,0 +1,16 @@
+{
+  "name": "s06_bigbg",
+  "n_grid": 300,
+  "n_presence": 500,
+  "n_background": 50000,
+  "seed": 16,
+  "variables": [
+    "temp",
+    "prec",
+    "rough"
+  ],
+  "missing_frac": 0.0,
+  "nodata": -9999,
+  "synthetic": true,
+  "generator": "scripts/gen_synthetic.py"
+}

@@ -1,0 +1,13 @@
+[package]
+name = "niche-maxent"
+description = "MaxEnt-compatible species distribution modelling kernel (pure domain, no I/O)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror = "2"
+
+[lints]
+workspace = true

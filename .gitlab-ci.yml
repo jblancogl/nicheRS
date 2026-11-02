@@ -1,0 +1,146 @@
+include:
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+
+stages:
+  - test
+  - image
+
+variables:
+  IMAGE_SHA: "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+  IMAGE_LATEST: "$CI_REGISTRY_IMAGE:latest"
+  REGISTRY_TLS_VERIFY: "true"
+  CARGO_HOME: "$CI_PROJECT_DIR/.cache/cargo"
+  # Rust caches are only downloaded: uploading them took ~165 s per job. They are refreshed
+  # when Cargo.lock or this file changes, and by the nightly scheduled pipeline.
+  CARGO_CACHE_POLICY: pull
+  NEXTEST_VERSION: "0.9.146"
+
+# Files that change what is built. A commit touching nothing else (documentation) runs only
+# secret detection: no tests or image build.
+.code_paths: &code_paths
+  - crates/**/*
+  - web/**/*
+  - tests/**/*
+  - Cargo.toml
+  - Cargo.lock
+  - Containerfile.ci
+  - .gitlab-ci.yml
+
+# Rust jobs: refresh the cache on schedules and dependency changes, else pull it.
+.rust_rules: &rust_rules
+  - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    variables:
+      CARGO_CACHE_POLICY: pull-push
+  - changes:
+      - Cargo.lock
+      - .gitlab-ci.yml
+    variables:
+      CARGO_CACHE_POLICY: pull-push
+  - changes: *code_paths
+
+# Unit, golden (vs maxent.jar 3.4.4 references), end-to-end demo and recovery tests.
+# No network and no Java needed: references are committed under tests/reference.
+# nextest runs the test binaries in parallel (79 tests: ~15 s instead of ~70 s in sequence);
+# it does not run doctests, hence `cargo test --doc`.
+test:rust:
+  stage: test
+  image: docker.io/library/rust:1.96-bookworm
+  interruptible: true
+  cache:
+    key:
+      files:
+        - Cargo.lock
+    paths:
+      - .cache/cargo
+      - target
+    policy: $CARGO_CACHE_POLICY
+  script:
+    - rustup component add clippy rustfmt
+    - cargo fmt --all --check
+    - cargo clippy --locked --workspace --all-targets -- -D warnings
+    - |
+      if ! cargo nextest --version 2>/dev/null | grep -q "$NEXTEST_VERSION"; then
+        mkdir -p "$CARGO_HOME/bin"
+        curl -LsSf "https://get.nexte.st/$NEXTEST_VERSION/linux" | tar zxf - -C "$CARGO_HOME/bin"
+      fi
+    - cargo nextest run --locked --workspace
+    - cargo test --locked --workspace --doc
+  rules: *rust_rules
+
+test:web:
+  stage: test
+  image: docker.io/library/node:22-bookworm
+  interruptible: true
+  cache:
+    key:
+      files:
+        - web/package-lock.json
+    paths:
+      - web/node_modules
+  script:
+    - cd web
+    - npm ci --no-audit --no-fund
+    - npm run typecheck
+    - npm run lint
+    - npm run build
+  # The release binary embeds this build (build:binary), so the image never rebuilds the UI.
+  artifacts:
+    paths:
+      - web/dist
+    expire_in: 1 day
+  rules:
+    - changes: *code_paths
+
+# The release binary, compiled once with a warm cache while the tests run. Its own cache key:
+# the `dist` profile (LTO, one codegen unit) shares nothing with the test build.
+build:binary:
+  stage: test
+  image: docker.io/library/rust:1.96-bookworm
+  interruptible: true
+  needs:
+    - test:web
+  cache:
+    key:
+      prefix: dist
+      files:
+        - Cargo.lock
+    paths:
+      - .cache/cargo
+      - target
+    policy: $CARGO_CACHE_POLICY
+  script:
+    - NICHE_BUILD_ID="$CI_COMMIT_SHA" cargo build --locked --profile dist -p niche-cli
+    - mkdir -p image-context
+    - cp target/dist/niche image-context/niche
+  artifacts:
+    paths:
+      - image-context/niche
+    expire_in: 1 day
+  rules:
+    - if: '$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+      when: never
+    - *rust_rules
+
+build:image:
+  stage: image
+  image: quay.io/buildah/stable:latest
+  interruptible: true
+  variables:
+    STORAGE_DRIVER: vfs
+    BUILDAH_FORMAT: docker
+  # Packaging only (seconds): the binary comes from build:binary, and nothing is pushed unless
+  # every test passed.
+  needs:
+    - test:rust
+    - test:web
+    - build:binary
+    - job: secret_detection
+      optional: true
+  script:
+    - buildah login --tls-verify="$REGISTRY_TLS_VERIFY" -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - buildah bud --isolation=chroot --format=docker --build-arg "VCS_REF=$CI_COMMIT_SHA" -f Containerfile.ci -t "$IMAGE_SHA" -t "$IMAGE_LATEST" image-context
+    - buildah push --tls-verify="$REGISTRY_TLS_VERIFY" "$IMAGE_SHA"
+    - buildah push --tls-verify="$REGISTRY_TLS_VERIFY" "$IMAGE_LATEST"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: *code_paths

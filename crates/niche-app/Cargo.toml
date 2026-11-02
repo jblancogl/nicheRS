@@ -1,0 +1,36 @@
+[package]
+name = "niche-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+argon2 = "0.6.0"
+getrandom = "0.4.3"
+jiff = "0.2.38"
+niche-data = { version = "0.1.0", path = "../niche-data" }
+niche-eval = { version = "0.1.0", path = "../niche-eval" }
+niche-geo = { version = "0.1.0", path = "../niche-geo" }
+niche-maxent = { version = "0.1.0", path = "../niche-maxent" }
+niche-rf = { version = "0.1.0", path = "../niche-rf" }
+rayon = "1.12.0"
+ring = "0.17.14"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+thiserror = "2.0.21"
+tracing = "0.1.44"
+uuid = { version = "1.28.0", features = ["v7"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+# Regional mirror tests write a small GBIF archive (same crate and version as niche-data).
+zip = { version = "9.0.3", default-features = false, features = ["deflate"] }
+
+# Free space of the data volume for the administration page (statvfs; MIT, already in the tree).
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", default-features = false, features = ["fs"] }
